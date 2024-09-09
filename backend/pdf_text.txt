@@ -1,0 +1,1176 @@
+on MF methods. Although some recent advances [37, 38,
+45]haveappliedDNNstorecommendationtasksandshown
+promising results, they mostly used DNNs to model auxil-
+iaryinformation,suchastextualdescriptionofitems,audio
+features of musics, and visual content of images. With re-
+gardstomodellingthekeycollaborativefilteringeffect,they
+stillresortedtoMF,combininguseranditemlatentfeatures
+using an inner product.
+This work addresses the aforementioned research prob-
+lemsbyformalizinganeuralnetworkmodellingapproachfor
+collaborativefiltering. Wefocusonimplicitfeedback,which
+indirectly reflects users’ preference through behaviours like
+watching videos, purchasing products and clicking items.
+Compared to explicit feedback (i.e., ratings and reviews),
+implicit feedback can be tracked automatically and is thus
+much easier to collect for content providers. However, it is
+morechallengingtoutilize,sinceusersatisfactionisnotob-
+served and there is a natural scarcity of negative feedback.
+Inthispaper,weexplorethecentralthemeofhowtoutilize
+DNNs to model noisy implicit feedback signals.
+The main contributions of this work are as follows.
+1. We present a neural network architecture to model
+latent features of users and items and devise a gen-
+eral framework NCF for collaborative filtering based
+on neural networks.
+2. WeshowthatMFcanbeinterpretedasaspecialization
+of NCF and utilize a multi-layer perceptron to endow
+NCF modelling with a high level of non-linearities.
+3. We perform extensive experiments on two real-world
+datasets to demonstrate the effectiveness of our NCF
+approaches and the promise of deep learning for col-
+laborative filtering.
+2. PRELIMINARIES
+We first formalize the problem and discuss existing solu-
+tions for collaborative filtering with implicit feedback. We
+then shortly recapitulate the widely used MF model, high-
+lighting its limitation caused by using an inner product.
+2.1 LearningfromImplicitData
+Let M and N denote the number of users and items,
+respectively. We define the user–item interaction matrix
+Y∈RM×N from users’ implicit feedback as,
+(cid:40)
+1, if interaction (user u, item i) is observed;
+y = (1)
+ui
+0, otherwise.
+Here a value of 1 for y indicates that there is an interac-
+ui
+tionbetweenuseruanditemi;however,itdoesnotmeanu
+actually likes i. Similarly, a value of 0 does not necessarily
+mean u does not like i, it can be that the user is not aware
+of the item. This poses challenges in learning from implicit
+data, since it provides only noisy signals about users’ pref-
+erence. Whileobservedentriesatleastreflectusers’interest
+on items, the unobserved entries can be just missing data
+and there is a natural scarcity of negative feedback.
+The recommendation problem with implicit feedback is
+formulatedastheproblemofestimatingthescoresofunob-
+served entries in Y, which are used for ranking the items.
+Model-basedapproachesassumethatdatacanbegenerated
+(or described) by an underlying model. Formally, they can
+beabstractedaslearningyˆ =f(u,i|Θ),whereyˆ denotes
+ui ui i i i i i
+1 2 3 4 5 p'
+4
+u 1 1 1 1 0 1 p 1
+u 0 1 1 0 0 p 4
+2 s
+u 3 0 1 1 1 0
+re
+s u p
+2
+u 1 0 1 1 1
+4
+items p 3
+(a) user–item matrix (b) user latent space
+Figure 1: An example illustrates MF’s limitation.
+From data matrix (a), u is most similar to u , fol-
+4 1
+lowed by u , and lastly u . However in the latent
+3 2
+space (b), placing p closest to p makes p closer to
+4 1 4
+p than p , incurring a large ranking loss.
+2 3
+the predicted score of interaction y , Θ denotes model pa-
+ui
+rameters, and f denotes the function that maps model pa-
+rameterstothepredictedscore(whichwetermasaninter-
+action function).
+To estimate parameters Θ, existing approaches generally
+followthemachinelearningparadigmthatoptimizesanob-
+jective function. Two types of objective functions are most
+commonly used in literature — pointwise loss [14, 19] and
+pairwise loss [27, 33]. As a natural extension of abundant
+work on explicit feedback [21, 46], methods on pointwise
+learning usually follow a regression framework by minimiz-
+ing the squared loss between yˆ and its target value y .
+ui ui
+To handle the absence of negative data, they have either
+treatedallunobservedentriesasnegativefeedback,orsam-
+pled negative instances from unobserved entries [14]. For
+pairwise learning [27, 44], the idea is that observed entries
+shouldberankedhigherthantheunobservedones. Assuch,
+insteadofminimizingthelossbetweenyˆ andy ,pairwise
+ui ui
+learning maximizes the margin between observed entry yˆ
+ui
+and unobserved entry yˆ .
+uj
+Moving one step forward, our NCF framework parame-
+terizes the interaction function f using neural networks to
+estimate yˆ . As such, it naturally supports both pointwise
+ui
+and pairwise learning.
+2.2 MatrixFactorization
+MFassociateseachuseranditemwithareal-valuedvector
+oflatentfeatures. Letp andq denotethelatentvectorfor
+u i
+useruanditemi,respectively;MFestimatesaninteraction
+y as the inner product of p and q :
+ui u i
+K
+yˆ =f(u,i|p ,q )=pTq =(cid:88) p q , (2)
+ui u i u i uk ik
+k=1
+where K denotes the dimension of the latent space. As we
+cansee,MFmodelsthetwo-wayinteractionofuseranditem
+latent factors, assuming each dimension of the latent space
+is independent of each other and linearly combining them
+with the same weight. As such, MF can be deemed as a
+linear model of latent factors.
+Figure 1 illustrates how the inner product function can
+limittheexpressivenessofMF.Therearetwosettingstobe
+stated clearly beforehand to understand the example well.
+First, since MF maps users and items to the same latent
+space,thesimilaritybetweentwouserscanalsobemeasured
+with an inner product, or equivalently2, the cosine of the
+angle between their latent vectors. Second, without loss of
+2Assuming latent vectors are of a unit length.
+Training
+Output Layer Score ŷ ui y ui Target
+Layer X
+……
+Neural CF Layers
+Layer 2
+Layer 1
+Embedding Layer User Latent Vector Item Latent Vector
+PM×K= {puk} QN×K= {qik}
+Input Layer (Sparse) 0 0 0 1 0 0 …… 0 0 0 0 1 0 ……
+User (u) Item (i)
+Figure 2: Neural collaborative filtering framework
+generality, we use the Jaccard coefficient3 as the ground-
+truth similarity of two users that MF needs to recover.
+Let us first focus on the first three rows (users) in Fig-
+ure 1a. It is easy to have s (0.66) > s (0.5) > s (0.4).
+23 12 13
+Assuch,thegeometricrelationsofp ,p ,andp inthela-
+1 2 3
+tent space can be plotted as in Figure 1b. Now, let us con-
+sideranewuseru ,whoseinputisgivenasthedashedline
+4
+in Figure 1a. We can have s (0.6) > s (0.4) > s (0.2),
+41 43 42
+meaning that u is most similar to u , followed by u , and
+4 1 3
+lastly u . However, if a MF model places p closest to p
+2 4 1
+(thetwooptionsareshowninFigure1bwithdashedlines),
+itwillresultinp closertop thanp ,whichunfortunately
+4 2 3
+will incur a large ranking loss.
+The above example shows the possible limitation of MF
+causedbytheuseofasimpleandfixedinnerproducttoesti-
+matecomplexuser–iteminteractionsinthelow-dimensional
+latent space. We note that one way to resolve the issue is
+to use a large number of latent factors K. However, it may
+adversely hurt the generalization of the model (e.g., over-
+fitting the data), especially in sparse settings [26]. In this
+work, we address the limitation by learning the interaction
+function using DNNs from data.
+3. NEURALCOLLABORATIVEFILTERING
+We first present the general NCF framework, elaborat-
+ing how to learn NCF with a probabilistic model that em-
+phasizes the binary property of implicit data. We then
+showthatMFcanbeexpressedandgeneralizedunderNCF.
+To explore DNNs for collaborative filtering, we then pro-
+poseaninstantiationofNCF,usingamulti-layerperceptron
+(MLP) to learn the user–item interaction function. Lastly,
+we present a new neural matrix factorization model, which
+ensembles MF and MLP under the NCF framework; it uni-
+fies the strengths of linearity of MF and non-linearity of
+MLP for modelling the user–item latent structures.
+3.1 GeneralFramework
+Topermitafullneuraltreatmentofcollaborativefiltering,
+we adopt a multi-layer representation to model a user–item
+interactiony asshowninFigure2,wheretheoutputofone
+ui
+layerservesastheinputofthenextone. Thebottominput
+layerconsistsoftwofeaturevectorsvU andvI thatdescribe
+u i
+user u and item i, respectively; they can be customized to
+support a wide range of modelling of users and items, such
+3LetR bethesetofitemsthatuseruhasinteractedwith,
+u
+then the Jaccard similarity of users i and j is defined as
+s = |Ri|∩|Rj|.
+ij |Ri|∪|Rj| as context-aware [28, 1], content-based [3], and neighbor-
+based[26]. Sincethisworkfocusesonthepurecollaborative
+filtering setting, we use only the identity of a user and an
+item as the input feature, transforming it to a binarized
+sparsevectorwithone-hotencoding. Notethatwithsucha
+genericfeaturerepresentationforinputs,ourmethodcanbe
+easily adjusted to address the cold-start problem by using
+content features to represent users and items.
+Abovetheinputlayeristheembeddinglayer;itisafully
+connected layer that projects the sparse representation to
+a dense vector. The obtained user (item) embedding can
+be seen as the latent vector for user (item) in the context
+of latent factor model. The user embedding and item em-
+bedding are then fed into a multi-layer neural architecture,
+whichwetermasneuralcollaborativefilteringlayers,tomap
+thelatentvectorstopredictionscores. Eachlayeroftheneu-
+ral CF layers can be customized to discover certain latent
+structures of user–item interactions. The dimension of the
+last hidden layer X determines the model’s capability. The
+final output layer is the predicted score yˆ , and training
+ui
+is performed by minimizing the pointwise loss between yˆ
+ui
+anditstargetvaluey . We note thatanother way totrain
+ui
+the model is by performing pairwise learning, such as using
+the Bayesian Personalized Ranking [27] and margin-based
+loss[33]. Asthefocusofthepaperisontheneuralnetwork
+modelling part, we leave the extension to pairwise learning
+of NCF as a future work.
+We now formulate the NCF’s predictive model as
+yˆ =f(PTvU,QTvI|P,Q,Θ ), (3)
+ui u i f
+where P∈RM×K and Q∈RN×K, denoting the latent fac-
+tormatrixforusersanditems,respectively;andΘ denotes
+f
+the model parameters of the interaction function f. Since
+the function f is defined as a multi-layer neural network, it
+can be formulated as
+f(PTvU,QTvI)=φ (φ (...φ (φ (PTvU,QTvI))...)),
+u i out X 2 1 u i
+(4)
+whereφ andφ respectivelydenotethemappingfunction
+out x
+for the output layer and x-th neural collaborative filtering
+(CF) layer, and there are X neural CF layers in total.
+3.1.1 LearningNCF
+Tolearnmodelparameters,existingpointwisemethods[14,
+39] largely perform a regression with squared loss:
+L = (cid:88) w (y −yˆ )2, (5)
+sqr ui ui ui
+(u,i)∈Y∪Y−
+where Y denotes the set of observed interactions in Y, and
+Y−denotesthesetofnegativeinstances,whichcanbeall(or
+sampledfrom)unobservedinteractions; andw isahyper-
+ui
+parameter denoting the weight of training instance (u,i).
+While the squared loss can be explained by assuming that
+observationsaregeneratedfromaGaussiandistribution[29],
+we point out that it may not tally well with implicit data.
+This is because for implicit data, the target value y is
+ui
+a binarized 1 or 0 denoting whether u has interacted with
+i. In what follows, we present a probabilistic approach for
+learning the pointwise NCF that pays special attention to
+the binary property of implicit data.
+Considering the one-class nature of implicit feedback, we
+can view the value of y as a label — 1 means item i is
+ui
+relevant to u, and 0 otherwise. The prediction score yˆ
+ui
+thenrepresentshowlikelyiisrelevanttou. ToendowNCF
+with such a probabilistic explanation, we need to constrain
+the output yˆ in the range of [0,1], which can be easily
+ui
+achievedbyusingaprobabilisticfunction(e.g., theLogistic
+orProbit function)astheactivationfunctionfortheoutput
+layer φ . With the above settings, we then define the
+out
+likelihood function as
+p(Y,Y−|P,Q,Θ )= (cid:89) yˆ (cid:89) (1−yˆ ). (6)
+f ui uj
+(u,i)∈Y (u,j)∈Y−
+Taking the negative logarithm of the likelihood, we reach
+(cid:88) (cid:88)
+L=− logyˆ − log(1−yˆ )
+ui uj
+(u,i)∈Y (u,j)∈Y−
+(7)
+(cid:88)
+=− y logyˆ +(1−y )log(1−yˆ ).
+ui ui ui ui
+(u,i)∈Y∪Y−
+ThisistheobjectivefunctiontominimizefortheNCFmeth-
+ods,anditsoptimizationcanbedonebyperformingstochas-
+ticgradientdescent(SGD).Carefulreadersmighthavereal-
+izedthatitisthesameasthebinarycross-entropyloss,also
+known as log loss. By employing a probabilistic treatment
+forNCF,weaddressrecommendationwithimplicitfeedback
+as a binary classification problem. As the classification-
+aware log loss has rarely been investigated in recommen-
+dationliterature, weexploreitinthisworkandempirically
+show its effectiveness in Section 4.3. For the negative in-
+stancesY−,weuniformlysamplethemfromunobservedin-
+teractions in each iteration and control the sampling ratio
+w.r.t. the number of observed interactions. While a non-
+uniformsamplingstrategy(e.g., itempopularity-biased[14,
+12]) might further improve the performance, we leave the
+exploration as a future work.
+3.2 GeneralizedMatrixFactorization(GMF)
+WenowshowhowMFcanbeinterpretedasaspecialcase
+of our NCF framework. As MF is the most popular model
+for recommendation and has been investigated extensively
+in literature, being able to recover it allows NCF to mimic
+a large family of factorization models [26].
+Duetotheone-hotencodingofuser(item)IDoftheinput
+layer, the obtained embedding vector can be seen as the
+latent vector of user (item). Let the user latent vector p
+u
+bePTvU anditemlatentvectorq beQTvI. Wedefinethe
+u i i
+mapping function of the first neural CF layer as
+φ (p ,q )=p (cid:12)q , (8)
+1 u i u i
+where (cid:12) denotes the element-wise product of vectors. We
+then project the vector to the output layer:
+yˆ =a (hT(p (cid:12)q )), (9)
+ui out u i
+where a and h denote the activation function and edge
+out
+weights of the output layer, respectively. Intuitively, if we
+use an identity function for a and enforce h to be a uni-
+out
+form vector of 1, we can exactly recover the MF model.
+Under the NCF framework, MF can be easily general-
+ized and extended. For example, if we allow h to be learnt
+from data without the uniform constraint, it will result in
+a variant of MF that allows varying importance of latent
+dimensions. And if we use a non-linear function for a , it
+out
+will generalize MF to a non-linear setting which might be
+moreexpressivethanthelinearMFmodel. Inthiswork,we
+implementageneralizedversionofMFunderNCFthatuses the sigmoid function σ(x)=1/(1+e−x) as a and learns
+out
+hfromdatawiththelogloss(Section3.1.1). Wetermitas
+GMF, short for Generalized Matrix Factorization.
+3.3 Multi-LayerPerceptron(MLP)
+SinceNCFadoptstwopathwaystomodelusersanditems,
+it is intuitive to combine the features of two pathways by
+concatenating them. This design has been widely adopted
+inmultimodaldeeplearningwork[47,34]. However,simply
+avectorconcatenationdoesnotaccountforanyinteractions
+between user and item latent features, which is insufficient
+for modelling the collaborative filtering effect. To address
+this issue, we propose to add hidden layers on the concate-
+natedvector,usingastandardMLPtolearntheinteraction
+betweenuseranditemlatentfeatures. Inthissense,wecan
+endowthemodelalargelevelofflexibilityandnon-linearity
+tolearntheinteractionsbetweenp andq ,ratherthanthe
+u i
+way of GMF that uses only a fixed element-wise product
+on them. More precisely, the MLP model under our NCF
+framework is defined as
+(cid:20) (cid:21)
+p
+z =φ (p ,q )= u ,
+1 1 u i q
+i
+φ (z )=a (WTz +b ),
+2 1 2 2 1 2
+(10)
+......
+φ (z )=a (WTz +b ),
+L L−1 L L L−1 L
+yˆ =σ(hTφ (z )),
+ui L L−1
+where W , b , and a denote the weight matrix, bias vec-
+x x x
+tor, and activation function for the x-th layer’s perceptron,
+respectively. For activation functions of MLP layers, one
+can freely choose sigmoid, hyperbolic tangent (tanh), and
+Rectifier (ReLU), among others. We would like to ana-
+lyze each function: 1) The sigmoid function restricts each
+neuron to be in (0,1), which may limit the model’s perfor-
+mance; and it is known to suffer from saturation, where
+neurons stop learning when their output is near either 0 or
+1. 2) Even though tanh is a better choice and has been
+widely adopted [6, 44], it only alleviates the issues of sig-
+moid to a certain extent, since it can be seen as a rescaled
+version of sigmoid (tanh(x/2) = 2σ(x) − 1). And 3) as
+such, we opt for ReLU, which is more biologically plausi-
+bleandproventobenon-saturated[9];moreover,itencour-
+agessparseactivations,beingwell-suitedforsparsedataand
+makingthemodellesslikelytobeoverfitting. Ourempirical
+results show that ReLU yields slightly better performance
+thantanh,whichinturnissignificantlybetterthansigmoid.
+Asforthedesignofnetworkstructure,acommonsolution
+is to follow a tower pattern, where the bottom layer is the
+widest and each successive layer has a smaller number of
+neurons (as in Figure 2). The premise is that by using a
+small number of hidden units for higher layers, they can
+learnmoreabstractivefeaturesofdata[10]. Weempirically
+implement the tower structure, halving the layer size for
+each successive higher layer.
+3.4 FusionofGMFandMLP
+So far we have developed two instantiations of NCF —
+GMFthatappliesalinearkerneltomodelthelatentfeature
+interactions,andMLPthatusesanon-linearkerneltolearn
+theinteractionfunctionfromdata. Thequestionthenarises:
+howcanwefuseGMFandMLPundertheNCFframework,
+Score ŷ ui T Lr oa gi n loin sg s y ui Target
+𝝈
+NeuMFLayer
+Concatenation
+MLP Layer X
+GMF Layer ……ReLU
+Element-wise MLP Layer 2
+ReLU
+Product
+MLP Layer 1
+Concatenation
+MF User Vector MLP User Vector MF Item Vector MLP Item Vector
+0 0 0 1 0 0 …… 0 0 0 0 1 0 ……
+User (u) Item ( i)
+Figure 3: Neural matrix factorization model
+so that they can mutually reinforce each other to better
+model the complex user-iterm interactions?
+A straightforward solution is to let GMF and MLP share
+thesameembeddinglayer,andthencombinetheoutputsof
+their interaction functions. This way shares a similar spirit
+with the well-known Neural Tensor Network (NTN) [33].
+Specifically,themodelforcombiningGMFwithaone-layer
+MLP can be formulated as
+(cid:20) (cid:21)
+p
+yˆ =σ(hTa(p (cid:12)q +W u +b)). (11)
+ui u i q
+i
+However, sharing embeddings of GMF and MLP might
+limit the performance of the fused model. For example,
+it implies that GMF and MLP must use the same size of
+embeddings;fordatasetswheretheoptimalembeddingsize
+ofthetwomodelsvariesalot,thissolutionmayfailtoobtain
+the optimal ensemble.
+To provide more flexibility to the fused model, we allow
+GMFandMLPtolearnseparateembeddings,andcombine
+the two models by concatenating their last hidden layer.
+Figure 3 illustrates our proposal, the formulation of which
+is given as follows
+φGMF =pG(cid:12)qG,
+u i
+(cid:20) pM(cid:21)
+φMLP =a (WT(a (...a (WT u +b )...))+b ),
+L L L−1 2 2 qM 2 L
+i
+(cid:20) φGMF(cid:21)
+yˆ =σ(hT ),
+ui φMLP
+(12)
+where pG and pM denote the user embedding for GMF
+u u
+and MLP parts, respectively; and similar notations of qG
+i
+and qM for item embeddings. As discussed before, we use
+i
+ReLUastheactivationfunctionofMLPlayers. Thismodel
+combinesthelinearityofMFandnon-linearityofDNNsfor
+modelling user–item latent structures. We dub this model
+“NeuMF”,shortforNeuralMatrixFactorization. Thederiva-
+tive of the model w.r.t. each model parameter can be cal-
+culated with standard back-propagation, which is omitted
+here due to space limitation.
+3.4.1 Pre-training
+Duetothenon-convexityoftheobjectivefunctionofNeuMF,
+gradient-basedoptimizationmethodsonlyfindlocally-optimal
+solutions. It is reported that the initialization plays an im-
+portant role for the convergence and performance of deep
+learning models [7]. Since NeuMF is an ensemble of GMF and MLP, we propose to initialize NeuMF using the pre-
+trained models of GMF and MLP.
+WefirsttrainGMFandMLPwithrandominitializations
+until convergence. We then use their model parameters as
+the initialization for the corresponding parts of NeuMF’s
+parameters. The only tweak is on the output layer, where
+we concatenate weights of the two models with
+(cid:20) αhGMF (cid:21)
+h← , (13)
+(1−α)hMLP
+where hGMF and hMLP denote the h vector of the pre-
+trained GMF and MLP model, respectively; and α is a
+hyper-parameterdeterminingthetrade-offbetweenthetwo
+pre-trained models.
+For training GMF and MLP from scratch, we adopt the
+Adaptive Moment Estimation (Adam) [20], which adapts
+the learning rate for each parameter by performing smaller
+updates for frequent and larger updates for infrequent pa-
+rameters. The Adam method yields faster convergence for
+both models than the vanilla SGD and relieves the pain of
+tuning the learning rate. After feeding pre-trained parame-
+tersintoNeuMF,weoptimizeitwiththevanillaSGD,rather
+thanAdam. ThisisbecauseAdamneedstosavemomentum
+information for updating parameters properly. As we ini-
+tialize NeuMF with pre-trained model parameters only and
+forgo saving the momentum information, it is unsuitable to
+further optimize NeuMF with momentum-based methods.
+4. EXPERIMENTS
+In this section, we conduct experiments with the aim of
+answering the following research questions:
+RQ1 Do our proposed NCF methods outperform the state-
+of-the-art implicit collaborative filtering methods?
+RQ2 How does our proposed optimization framework (log
+loss with negative sampling) work for the recommen-
+dation task?
+RQ3 Are deeper layers of hidden units helpful for learning
+from user–item interaction data?
+In what follows, we first present the experimental settings,
+followed by answering the above three research questions.
+4.1 ExperimentalSettings
+Datasets. We experimented with two publicly accessible
+datasets: MovieLens4 andPinterest5. Thecharacteristicsof
+the two datasets are summarized in Table 1.
+1. MovieLens. This movie rating dataset has been
+widely used to evaluate collaborative filtering algorithms.
+We used the version containing one million ratings, where
+each user has at least 20 ratings. While it is an explicit
+feedbackdata,wehaveintentionallychosenittoinvestigate
+the performance of learning from the implicit signal [21] of
+explicit feedback. To this end, we transformed it into im-
+plicit data, where each entry is marked as 0 or 1 indicating
+whether the user has rated the item.
+2. Pinterest. Thisimplicitfeedbackdataisconstructed
+by [8] for evaluating content-based image recommendation.
+4http://grouplens.org/datasets/movielens/1m/
+5https://sites.google.com/site/xueatalphabeta/
+academic-projects
+Table 1: Statistics of the evaluation datasets.
+Dataset Interaction# Item# User# Sparsity
+MovieLens 1,000,209 3,706 6,040 95.53%
+Pinterest 1,500,809 9,916 55,187 99.73%
+Theoriginaldataisverylargebuthighlysparse. Forexam-
+ple, over 20% of users have only one pin, making it difficult
+to evaluate collaborative filtering algorithms. As such, we
+filtered the dataset in the same way as the MovieLens data
+thatretainedonlyuserswithatleast20interactions(pins).
+This results in a subset of the data that contains 55,187
+users and 1,500,809 interactions. Each interaction denotes
+whether the user has pinned the image to her own board.
+Evaluation Protocols. To evaluate the performance of
+item recommendation, we adopted the leave-one-out evalu-
+ation, which has been widely used in literature [1, 14, 27].
+For each user, we held-out her latest interaction as the test
+set and utilized the remaining data for training. Since it is
+too time-consuming to rank all items for every user during
+evaluation, we followed the common strategy [6, 21] that
+randomly samples 100 items that are not interacted by the
+user,rankingthetestitemamongthe100items. Theperfor-
+manceofarankedlistisjudgedbyHitRatio (HR)andNor-
+malized Discounted Cumulative Gain (NDCG) [11]. With-
+out special mention, we truncated the ranked list at 10 for
+bothmetrics. Assuch,theHRintuitivelymeasureswhether
+the test item is present on the top-10 list, and the NDCG
+accountsforthepositionofthehitbyassigninghigherscores
+to hits at top ranks. We calculated both metrics for each
+test user and reported the average score.
+Baselines. WecomparedourproposedNCFmethods(GMF,
+MLP and NeuMF) with the following methods:
+- ItemPop. Items are ranked by their popularity judged
+by the number of interactions. This is a non-personalized
+methodtobenchmarktherecommendationperformance[27].
+- ItemKNN [31]. This is the standard item-based col-
+laborative filtering method. We followed the setting of [19]
+to adapt it for implicit data.
+- BPR [27]. This method optimizes the MF model of
+Equation 2 with a pairwise ranking loss, which is tailored
+to learn from implicit feedback. It is a highly competitive
+baselineforitemrecommendation. Weusedafixedlearning
+rate, varying it and reporting the best performance.
+- eALS [14]. This is a state-of-the-art MF method for
+itemrecommendation. ItoptimizesthesquaredlossofEqua-
+tion 5, treating all unobserved interactions as negative in-
+stancesandweightingthemnon-uniformlybytheitempop-
+ularity. Since eALS shows superior performance over the
+uniform-weightingmethodWMF[19],wedonotfurtherre-
+port WMF’s performance.
+As our proposed methods aim to model the relationship
+between users and items, we mainly compare with user–
+item models. We leave out the comparison with item–item
+models,suchasSLIM[25]andCDAE[44],becausetheper-
+formance difference may be caused by the user models for
+personalization (as they are item–item model).
+ParameterSettings. Weimplementedourproposedmeth-
+ods based on Keras6. To determine hyper-parameters of
+NCF methods, we randomly sampled one interaction for
+6https://github.com/hexiangnan/neural_
+collaborative_filtering eachuserasthevalidationdataandtunedhyper-parameters
+on it. All NCF models are learnt by optimizing the log loss
+of Equation 7, where we sampled four negative instances
+per positive instance. For NCF models that are trained
+fromscratch,werandomlyinitializedmodelparameterswith
+a Gaussian distribution (with a mean of 0 and standard
+deviation of 0.01), optimizing the model with mini-batch
+Adam[20]. Wetestedthebatchsizeof[128,256,512,1024],
+andthelearningrateof[0.0001,0.0005,0.001,0.005]. Since
+the last hidden layer of NCF determines the model capa-
+bility, we term it as predictive factors and evaluated the
+factorsof[8,16,32,64]. Itisworthnotingthatlargefactors
+may cause overfitting and degrade the performance. With-
+out special mention, we employed three hidden layers for
+MLP;forexample,ifthesizeofpredictivefactorsis8,then
+thearchitectureoftheneuralCFlayersis32→16→8,and
+theembeddingsizeis16. FortheNeuMFwithpre-training,
+αwassetto0.5,allowingthepre-trainedGMFandMLPto
+contribute equally to NeuMF’s initialization.
+4.2 PerformanceComparison(RQ1)
+Figure4showstheperformanceofHR@10andNDCG@10
+with respect to the number of predictive factors. For MF
+methods BPR and eALS, the number of predictive factors
+is equal to the number of latent factors. For ItemKNN, we
+tested different neighbor sizes and reported the best per-
+formance. Due to the weak performance of ItemPop, it is
+omittedinFigure4tobetterhighlighttheperformancedif-
+ference of personalized methods.
+First, we can see that NeuMF achieves the best perfor-
+manceonbothdatasets,significantlyoutperformingthestate-
+of-the-art methods eALS and BPR by a large margin (on
+average, the relative improvement over eALS and BPR is
+4.5% and 4.9%, respectively). For Pinterest, even with a
+small predictive factor of 8, NeuMF substantially outper-
+formsthatofeALSandBPRwithalargefactorof64. This
+indicates the high expressiveness of NeuMF by fusing the
+linear MF and non-linear MLP models. Second, the other
+two NCF methods — GMF and MLP — also show quite
+strong performance. Between them, MLP slightly under-
+performsGMF.NotethatMLPcanbefurtherimprovedby
+adding more hidden layers (see Section 4.4), and here we
+only show the performance of three layers. For small pre-
+dictive factors, GMF outperforms eALS on both datasets;
+although GMF suffers from overfitting for large factors, its
+best performance obtained is better than (or on par with)
+that of eALS. Lastly, GMF shows consistent improvements
+over BPR, admitting the effectiveness of the classification-
+awareloglossfortherecommendationtask,sinceGMFand
+BPRlearnthe same MFmodelbutwithdifferentobjective
+functions.
+Figure 5 shows the performance of Top-K recommended
+lists where the ranking position K ranges from 1 to 10. To
+make the figure more clear, we show the performance of
+NeuMF rather than all three NCF methods. As can be
+seen, NeuMF demonstrates consistent improvements over
+other methods across positions, and we further conducted
+one-sample paired t-tests, verifying that all improvements
+are statistically significant for p<0.01. For baseline meth-
+ods,eALSoutperformsBPRonMovieLenswithabout5.1%
+relativeimprovement,whileunderperformsBPRonPinter-
+estintermsofNDCG.Thisisconsistentwith[14]’sfinding
+thatBPRcanbeastrongperformerforrankingperformance
+MovieLens MovieLens
+0.75 0.46
+0.7 0.42
+0
+0 1 1 @
+@0.65 G0.38
+R C
+H D
+N
+0.6 ItemKNN BPR 0.34 ItemKNN BPR
+eALS GMF eALS GMF
+MLP NeuMF MLP NeuMF
+0.55 0.3
+8 16Factors32 64 8 16Factors32 64
+(a) MovieLens — HR@10 (b) MovieLens — NDCG@10
+Figure4: PerformanceofHR@10andNDCG@10w.r.t
+MovieLens MovieLens
+0.7 0.42
+0.55 0.34
+K
+K @
+@ R 0.4 G C0.26
+H D
+N
+0.25 ItemPop ItemKNN 0.18 ItemPop ItemKNN
+BPR eALS BPR eALS
+NeuMF NeuMF
+0.1 0.1
+1 2 3 4 5 6 7 8 9 10 1 2 3 4 5 6 7 8 9 10
+K K
+(a) MovieLens — HR@K (b) MovieLens — NDCG@K
+Figure 5: Evaluation of Top-K item recommendatio
+owing to its pairwise ranking-aware learner. The neighbor-
+basedItemKNNunderperformsmodel-basedmethods. And
+ItemPopperformstheworst,indicatingthenecessityofmod-
+elingusers’personalizedpreferences,ratherthanjustrecom-
+mending popular items to users.
+4.2.1 UtilityofPre-training
+Todemonstratetheutilityofpre-trainingforNeuMF,we
+compared the performance of two versions of NeuMF —
+with and without pre-training. For NeuMF without pre-
+training, we used the Adam to learn it with random ini-
+tializations. As shown in Table 2, the NeuMF with pre-
+training achieves better performance in most cases; only
+for MovieLens with a small predictive factors of 8, the pre-
+training method performs slightly worse. The relative im-
+provements of the NeuMF with pre-training are 2.2% and
+1.1% for MovieLens and Pinterest, respectively. This re-
+sult justifies the usefulness of our pre-training method for
+initializing NeuMF.
+Table 2: Performance of NeuMF with and without
+pre-training.
+With Pre-training Without Pre-training
+Factors HR@10 NDCG@10 HR@10 NDCG@10
+MovieLens
+8 0.684 0.403 0.688 0.410
+16 0.707 0.426 0.696 0.420
+32 0.726 0.445 0.701 0.425
+64 0.730 0.447 0.705 0.426
+Pinterest
+8 0.878 0.555 0.869 0.546
+16 0.880 0.558 0.871 0.547
+32 0.879 0.555 0.870 0.549
+64 0.877 0.552 0.872 0.551 Pinterest Pinterest
+0.9 0.56
+0.87 0.54
+0
+1
+@
+0.84 G0.52
+C
+D
+ItemKNN BPR N ItemKNN BPR
+0.81 eALS GMF 0.5 eALS GMF
+MLP NeuMF MLP NeuMF
+0.78 0.48
+8 16Factors32 64 8 16Factors32 64
+(c) Pinterest — HR@10 (d) Pinterest — NDCG@10
+thenumberofpredictivefactorsonthetwodatasets.
+Pinterest Pinterest
+0.9 0.58
+0.7 0.46
+ItemPop K ItemPop
+K @0.5 ItemKNN @ G0.34 ItemKNN
+R BPR C BPR
+H eALS D N eALS
+0.3 NeuMF 0.22 NeuMF
+0.1 0.1
+1 2 3 4 5 6 7 8 9 10 1 2 3 4 5 6 7 8 9 10
+K K
+(c) Pinterest — HR@K (d) Pinterest — NDCG@K
+where K ranges from 1 to 10 on the two datasets.
+4.3 LogLosswithNegativeSampling(RQ2)
+To deal with the one-class nature of implicit feedback,
+we cast recommendation as a binary classification task. By
+viewingNCFasaprobabilisticmodel,weoptimizeditwith
+the log loss. Figure 6 shows the training loss (averaged
+overallinstances)andrecommendationperformanceofNCF
+methodsofeachiterationonMovieLens. ResultsonPinter-
+est show the same trend and thus they are omitted due to
+spacelimitation. First,wecanseethatwithmoreiterations,
+the training loss of NCF models gradually decreases and
+the recommendation performance is improved. The most
+effective updates are occurred in the first 10 iterations, and
+moreiterationsmayoverfitamodel(e.g.,althoughthetrain-
+ing loss of NeuMF keeps decreasing after 10 iterations, its
+recommendation performance actually degrades). Second,
+amongthethreeNCFmethods,NeuMFachievesthelowest
+training loss, followed by MLP, and then GMF. The rec-
+ommendation performance also shows the same trend that
+NeuMF>MLP>GMF.Theabovefindingsprovideempir-
+icalevidencefortherationalityandeffectivenessofoptimiz-
+ing the log loss for learning from implicit data.
+Anadvantageofpointwiseloglossoverpairwiseobjective
+functions [27, 33] is the flexible sampling ratio for negative
+instances. While pairwise objective functions can pair only
+one sampled negative instance with a positive instance, we
+canflexiblycontrolthesamplingratioofapointwiseloss. To
+illustratetheimpactofnegativesamplingforNCFmethods,
+we show the performance of NCF methods w.r.t. different
+negative sampling ratios in Figure 7. It can be clearly seen
+that just one negative sample per positive instance is insuf-
+ficient to achieve optimal performance, and sampling more
+negative instances is beneficial. Comparing GMF to BPR,
+we can see the performance of GMF with a sampling ratio
+ofoneisonparwithBPR,whileGMFsignificantlybetters
+MovieLens Movi
+0.5
+GMF
+MLP 0.7
+0.4 NeuMF
+sso
+L g n0.3 0 1 @0.5
+in
+ia
+R
+H
+rT0.2 0.3
+0.1 0.1
+0 10 20 30 40 50 0 10 2
+Iteration I
+(a) Training Loss (b) H
+Figure 6: Training loss and recommendation perform
+on MovieLens (factors=8).
+MovieLens MovieLens
+0.72 0.44
+0.7
+0.42
+0
+0 10.68 1 @
+@ G 0.4
+R H0.66 NeuMF C D N NeuMF
+GMF 0.38 GMF
+0.64 MLP MLP
+BPR BPR
+0.62 0.36
+1 2 3 4 5 6 7 8 9 10 1 2 3 4 5 6 7 8 9 10
+Number of Negatives Number of Negatives
+(a) MovieLens — HR@10 (b) MovieLens — NDCG@10
+Figure 7: Performance of NCF methods w.r.t. the n
+tors=16). The performance of BPR is also shown, w
+positive instance for learning.
+BPR with larger sampling ratios. This shows the advan-
+tage of pointwise log loss over the pairwise BPR loss. For
+both datasets, the optimal sampling ratio is around 3 to 6.
+OnPinterest,wefindthatwhenthesamplingratioislarger
+than 7, the performance of NCF methods starts to drop. It
+revealsthatsettingthesamplingratiotooaggressivelymay
+adversely hurt the performance.
+4.4 IsDeepLearningHelpful? (RQ3)
+As there is little work on learning user–item interaction
+function with neural networks, it is curious to see whether
+using a deep network structure is beneficial to the recom-
+mendation task. Towards this end, we further investigated
+MLP with different number of hidden layers. The results
+are summarized in Table 3 and 4. The MLP-3 indicates
+the MLP method with three hidden layers (besides the em-
+bedding layer), and similar notations for others. As we can
+see,evenformodelswiththesamecapability,stackingmore
+layers are beneficial to performance. This result is highly
+encouraging,indicatingtheeffectivenessofusingdeepmod-
+els for collaborative recommendation. We attribute the im-
+provement to the high non-linearities brought by stacking
+morenon-linearlayers. Toverifythis,wefurthertriedstack-
+inglinearlayers,usinganidentityfunctionastheactivation
+function. The performance is much worse than using the
+ReLU unit.
+ForMLP-0thathasnohiddenlayers(i.e.,theembedding
+layerisdirectlyprojectedtopredictions),theperformanceis
+veryweakandisnotbetterthanthenon-personalizedItem-
+Pop. This verifies our argument in Section 3.3 that simply
+concatenatinguseranditemlatentvectorsisinsufficientfor
+modelling their feature interactions, and thus the necessity
+of transforming it with hidden layers. Lens MovieLens
+0.5
+0.4
+0
+10.3
+@
+G
+C D0.2
+GMF N GMF
+MLP 0.1 MLP
+NeuMF NeuMF
+0
+30 40 50 0 10 20 30 40 50
+eration Iteration
+@10 (c) NDCG@10
+nce of NCF methods w.r.t. the number of iterations
+Pinterest Pinterest
+0.89 0.57
+0.88 0.56
+0
+0.87 10.55
+@
+G
+0.86 NeuMF C D N0.54
+GMF
+0.85 MLP 0.53 NeuMF GMF
+BPR MLP BPR
+0.84 0.52
+1 2 3 4 5 6 7 8 9 10 1 2 3 4 5 6 7 8 9 10
+Number of Negatives Number of Negatives
+(c) Pinterest — HR@10 (d) Pinterest — NDCG@10
+mber of negative samples per positive instance (fac-
+ich samples only one negative instance to pair with a
+Table 3: HR@10 of MLP with different layers.
+Factors MLP-0 MLP-1 MLP-2 MLP-3 MLP-4
+MovieLens
+8 0.452 0.628 0.655 0.671 0.678
+16 0.454 0.663 0.674 0.684 0.690
+32 0.453 0.682 0.687 0.692 0.699
+64 0.453 0.687 0.696 0.702 0.707
+Pinterest
+8 0.275 0.848 0.855 0.859 0.862
+16 0.274 0.855 0.861 0.865 0.867
+32 0.273 0.861 0.863 0.868 0.867
+64 0.274 0.864 0.867 0.869 0.873
+5. RELATEDWORK
+While early literature on recommendation has largely fo-
+cused on explicit feedback [30, 31], recent attention is in-
+creasingly shifting towards implicit data [1, 14, 23]. The
+collaborative filtering (CF) task with implicit feedback is
+usuallyformulatedasanitemrecommendationproblem,for
+whichtheaimistorecommendashortlistofitemstousers.
+Incontrasttoratingpredictionthathasbeenwidelysolved
+byworkonexplicitfeedback,addressingtheitemrecommen-
+dationproblemismorepracticalbutchallenging[1,11]. One
+key insight is to model the missing data, which are always
+ignored by the work on explicit feedback [21, 48]. To tailor
+latentfactormodelsforitemrecommendationwithimplicit
+feedback, early work [19, 27] applies a uniform weighting
+where two strategies have been proposed — which either
+treated all missing data as negative instances [19] or sam-
+plednegativeinstancesfrommissingdata[27]. Recently,He
+et al. [14] and Liang et al. [23] proposed dedicated models
+to weight missing data, and Rendle et al. [1] developed an
+Table 4: NDCG@10 of MLP with different layers.
+Factors MLP-0 MLP-1 MLP-2 MLP-3 MLP-4
+MovieLens
+8 0.253 0.359 0.383 0.399 0.406
+16 0.252 0.391 0.402 0.410 0.415
+32 0.252 0.406 0.410 0.425 0.423
+64 0.251 0.409 0.417 0.426 0.432
+Pinterest
+8 0.141 0.526 0.534 0.536 0.539
+16 0.141 0.532 0.536 0.538 0.544
+32 0.142 0.537 0.538 0.542 0.546
+64 0.141 0.538 0.542 0.545 0.550
+implicitcoordinatedescent(iCD)solutionforfeature-based
+factorizationmodels,achievingstate-of-the-artperformance
+for item recommendation. In the following, we discuss rec-
+ommendation works that use neural networks.
+The early pioneer work by Salakhutdinov et al. [30] pro-
+posed a two-layer Restricted Boltzmann Machines (RBMs)
+tomodelusers’explicitratingsonitems. Theworkwasbeen
+later extended to model the ordinal nature of ratings [36].
+Recently, autoencoders have become a popular choice for
+building recommendation systems [32, 22, 35]. The idea of
+user-based AutoRec [32] is to learn hidden structures that
+can reconstruct a user’s ratings given her historical ratings
+as inputs. In terms of user personalization, this approach
+shares a similar spirit as the item–item model [31, 25] that
+representsauserasherrateditems. Toavoidautoencoders
+learninganidentityfunctionandfailingtogeneralizetoun-
+seendata,denoisingautoencoders(DAEs)havebeenapplied
+to learn from intentionally corrupted inputs [22, 35]. More
+recently, Zheng et al. [48] presented a neural autoregressive
+method for CF. While the previous effort has lent support
+to the effectiveness of neural networks for addressing CF,
+most of them focused on explicit ratings and modelled the
+observeddataonly. Asaresult,theycaneasilyfailtolearn
+users’ preference from the positive-only implicit data.
+Although some recent works [6, 37, 38, 43, 45] have ex-
+plored deep learning models for recommendation based on
+implicit feedback, they primarily used DNNs for modelling
+auxiliaryinformation,suchastextualdescriptionofitems[38],
+acoustic features of musics [37, 43], cross-domain behaviors
+ofusers[6],andtherichinformationinknowledgebases[45].
+The features learnt by DNNs are then integrated with MF
+for CF. The work that is most relevant to our work is [44],
+whichpresentsacollaborativedenoisingautoencoder(CDAE)
+forCFwithimplicitfeedback. IncontrasttotheDAE-based
+CF [35], CDAE additionally plugs a user node to the input
+of autoencoders for reconstructing the user’s ratings. As
+shown by the authors, CDAE is equivalent to the SVD++
+model [21] when the identity function is applied to acti-
+vatethehiddenlayersofCDAE.Thisimpliesthatalthough
+CDAEisaneuralmodellingapproachforCF,itstillapplies
+alinearkernel(i.e.,innerproduct)tomodeluser–iteminter-
+actions. Thismaypartiallyexplainwhyusingdeeplayersfor
+CDAE does not improve the performance (cf. Section 6 of
+[44]). DistinctfromCDAE,ourNCFadoptsatwo-pathway
+architecture,modellinguser–iteminteractionswithamulti-
+layerfeedforwardneuralnetwork. ThisallowsNCFtolearn
+an arbitrary function from the data, being more powerful
+and expressive than the fixed inner product function.
+Along a similar line, learning the relations of two enti-
+ties has been intensively studied in literature of knowledge graphs [2, 33]. Many relational machine learning methods
+have been devised [24]. The one that is most similar to our
+proposal is the Neural Tensor Network (NTN) [33], which
+uses neural networks to learnthe interactionof twoentities
+and shows strong performance. Here we focus on a differ-
+ent problem setting of CF. While the idea of NeuMF that
+combines MF with MLP is partially inspired by NTN, our
+NeuMF is more flexible and generic than NTN, in terms of
+allowingMFandMLPlearningdifferentsetsofembeddings.
+Morerecently,GooglepublicizedtheirWide&Deeplearn-
+ingapproachforApprecommendation[4]. Thedeepcompo-
+nentsimilarlyusesaMLPonfeatureembeddings,whichhas
+been reported to have strong generalization ability. While
+their work has focused on incorporating various features
+of users and items, we target at exploring DNNs for pure
+collaborative filtering systems. We show that DNNs are a
+promisingchoiceformodellinguser–iteminteractions,which
+to our knowledge has not been investigated before.
+6. CONCLUSIONANDFUTUREWORK
+In this work, we explored neural network architectures
+for collaborative filtering. We devised a general framework
+NCF and proposed three instantiations — GMF, MLP and
+NeuMF — that model user–item interactions in different
+ways. Ourframeworkissimpleandgeneric;itisnotlimited
+to the models presented in this paper, but is designed to
+serveasaguidelinefordevelopingdeeplearningmethodsfor
+recommendation. This work complements the mainstream
+shallowmodelsforcollaborativefiltering,openingupanew
+avenue of research possibilities for recommendation based
+on deep learning.
+In future, we will study pairwise learners for NCF mod-
+els and extend NCF to model auxiliary information, such
+asuserreviews[11],knowledgebases[45],andtemporalsig-
+nals[1]. Whileexistingpersonalizationmodelshaveprimar-
+ilyfocusedonindividuals,itisinterestingtodevelopmodels
+forgroupsofusers,whichhelpthedecision-makingforsocial
+groups [15, 42]. Moreover, we are particularly interested in
+buildingrecommendersystemsformulti-mediaitems,anin-
+terestingtaskbuthasreceivedrelativelylessscrutinyinthe
+recommendationcommunity[3]. Multi-mediaitems,suchas
+imagesandvideos,containmuchrichervisualsemantics[16,
+41] that can reflect users’ interest. To build a multi-media
+recommender system, we need to develop effective methods
+tolearnfrommulti-viewandmulti-modaldata[13,40]. An-
+otheremergingdirectionistoexplorethepotentialofrecur-
+rentneuralnetworksandhashingmethods[46]forproviding
+efficient online recommendation [14, 1].
+Acknowledgement
+The authors thank the anonymous reviewers for their valu-
+ablecomments,whicharebeneficialtotheauthors’thoughts
+onrecommendationsystemsandtherevisionofthepaper.
+7. REFERENCES
+[1] I.Bayer,X.He,B.Kanagal,andS.Rendle.Ageneric
+coordinatedescentframeworkforlearningfromimplicit
+feedback.InWWW,2017.
+[2] A.Bordes,N.Usunier,A.Garcia-Duran,J.Weston,and
+O.Yakhnenko.Translatingembeddingsformodeling
+multi-relationaldata.InNIPS,pages2787–2795,2013.
+[3] T.Chen,X.He,andM.-Y.Kan.Context-awareimage
+tweetmodellingandrecommendation.InMM,pages
+1018–1027,2016.
+[4] H.-T.Cheng,L.Koc,J.Harmsen,T.Shaked,T.Chandra,
+H.Aradhye,G.Anderson,G.Corrado,W.Chai,M.Ispir,
+etal.Wide&deeplearningforrecommendersystems.
+arXiv preprint arXiv:1606.07792,2016.
+[5] R.CollobertandJ.Weston.Aunifiedarchitecturefor
+naturallanguageprocessing: Deepneuralnetworkswith
+multitasklearning.InICML,pages160–167,2008.
+[6] A.M.Elkahky,Y.Song,andX.He.Amulti-viewdeep
+learningapproachforcrossdomainusermodelingin
+recommendationsystems.InWWW,pages278–288,2015.
+[7] D.Erhan,Y.Bengio,A.Courville,P.-A.Manzagol,
+P.Vincent,andS.Bengio.Whydoesunsupervised
+pre-traininghelpdeeplearning? Journal of Machine
+Learning Research,11:625–660,2010.
+[8] X.Geng,H.Zhang,J.Bian,andT.-S.Chua.Learning
+imageanduserfeaturesforrecommendationinsocial
+networks.InICCV,pages4274–4282,2015.
+[9] X.Glorot,A.Bordes,andY.Bengio.Deepsparserectifier
+neuralnetworks.InAISTATS,pages315–323,2011.
+[10] K.He,X.Zhang,S.Ren,andJ.Sun.Deepresidual
+learningforimagerecognition.InCVPR,2016.
+[11] X.He,T.Chen,M.-Y.Kan,andX.Chen.TriRank:
+Review-awareexplainablerecommendationbymodeling
+aspects.InCIKM,pages1661–1670,2015.
+[12] X.He,M.Gao,M.-Y.Kan,Y.Liu,andK.Sugiyama.
+Predictingthepopularityofweb2.0itemsbasedonuser
+comments.InSIGIR,pages233–242,2014.
+[13] X.He,M.-Y.Kan,P.Xie,andX.Chen.Comment-based
+multi-viewclusteringofweb2.0items.InWWW,pages
+771–782,2014.
+[14] X.He,H.Zhang,M.-Y.Kan,andT.-S.Chua.Fastmatrix
+factorizationforonlinerecommendationwithimplicit
+feedback.InSIGIR,pages549–558,2016.
+[15] R.Hong,Z.Hu,L.Liu,M.Wang,S.Yan,andQ.Tian.
+Understandingbloominghumangroupsinsocialnetworks.
+IEEETransactionsonMultimedia,17(11):1980–1988,2015.
+[16] R.Hong,Y.Yang,M.Wang,andX.S.Hua.Learning
+visualsemanticrelationshipsforefficientvisualretrieval.
+IEEE Transactions on Big Data,1(4):152–161,2015.
+[17] K.Hornik,M.Stinchcombe,andH.White.Multilayer
+feedforwardnetworksareuniversalapproximators.Neural
+Networks,2(5):359–366,1989.
+[18] L.Hu,A.Sun,andY.Liu.Yourneighborsaffectyour
+ratings: Ongeographicalneighborhoodinfluencetorating
+prediction.InSIGIR,pages345–354,2014.
+[19] Y.Hu,Y.Koren,andC.Volinsky.Collaborativefiltering
+forimplicitfeedbackdatasets.InICDM,pages263–272,
+2008.
+[20] D.KingmaandJ.Ba.Adam: Amethodforstochastic
+optimization.InICLR,pages1–15,2014.
+[21] Y.Koren.Factorizationmeetstheneighborhood: A
+multifacetedcollaborativefilteringmodel.InKDD,pages
+426–434,2008.
+[22] S.Li,J.Kawale,andY.Fu.Deepcollaborativefilteringvia
+marginalizeddenoisingauto-encoder.InCIKM,pages
+811–820,2015.
+[23] D.Liang,L.Charlin,J.McInerney,andD.M.Blei.
+Modelinguserexposureinrecommendation.InWWW,
+pages951–961,2016.
+[24] M.Nickel,K.Murphy,V.Tresp,andE.Gabrilovich.A
+reviewofrelationalmachinelearningforknowledgegraphs.
+Proceedings of the IEEE,104:11–33,2016.
+[25] X.NingandG.Karypis.Slim: Sparselinearmethodsfor
+top-nrecommendersystems.InICDM,pages497–506,
+2011.
+[26] S.Rendle.Factorizationmachines.InICDM,pages
+995–1000,2010.
+[27] S.Rendle,C.Freudenthaler,Z.Gantner,and
+L.Schmidt-Thieme.Bpr: Bayesianpersonalizedranking
+fromimplicitfeedback.InUAI,pages452–461,2009.
+[28] S.Rendle,Z.Gantner,C.Freudenthaler,and L.Schmidt-Thieme.Fastcontext-awarerecommendations
+withfactorizationmachines.InSIGIR,pages635–644,
+2011.
+[29] R.SalakhutdinovandA.Mnih.Probabilisticmatrix
+factorization.InNIPS,pages1–8,2008.
+[30] R.Salakhutdinov,A.Mnih,andG.Hinton.Restricted
+boltzmannmachinesforcollaborativefiltering.InICDM,
+pages791–798,2007.
+[31] B.Sarwar,G.Karypis,J.Konstan,andJ.Riedl.
+Item-basedcollaborativefilteringrecommendation
+algorithms.InWWW,pages285–295,2001.
+[32] S.Sedhain,A.K.Menon,S.Sanner,andL.Xie.Autorec:
+Autoencodersmeetcollaborativefiltering.InWWW,pages
+111–112,2015.
+[33] R.Socher,D.Chen,C.D.Manning,andA.Ng.Reasoning
+withneuraltensornetworksforknowledgebasecompletion.
+InNIPS,pages926–934,2013.
+[34] N.SrivastavaandR.R.Salakhutdinov.Multimodal
+learningwithdeepboltzmannmachines.InNIPS,pages
+2222–2230,2012.
+[35] F.StrubandJ.Mary.Collaborativefilteringwithstacked
+denoisingautoencodersandsparseinputs.InNIPS
+Workshop on Machine Learning for eCommerce,2015.
+[36] T.T.Truyen,D.Q.Phung,andS.Venkatesh.Ordinal
+boltzmannmachinesforcollaborativefiltering.InUAI,
+pages548–556,2009.
+[37] A.VandenOord,S.Dieleman,andB.Schrauwen.Deep
+content-basedmusicrecommendation.InNIPS,pages
+2643–2651,2013.
+[38] H.Wang,N.Wang,andD.-Y.Yeung.Collaborativedeep
+learningforrecommendersystems.InKDD,pages
+1235–1244,2015.
+[39] M.Wang,W.Fu,S.Hao,D.Tao,andX.Wu.Scalable
+semi-supervisedlearningbyefficientanchorgraph
+regularization.IEEE Transactions on Knowledge and Data
+Engineering,28(7):1864–1877,2016.
+[40] M.Wang,H.Li,D.Tao,K.Lu,andX.Wu.Multimodal
+graph-basedrerankingforwebimagesearch.IEEE
+Transactions on Image Processing,21(11):4649–4661,2012.
+[41] M.Wang,X.Liu,andX.Wu.Visualclassificationbyl1
+hypergraphmodeling.IEEE Transactions on Knowledge
+and Data Engineering,27(9):2564–2574,2015.
+[42] X.Wang,L.Nie,X.Song,D.Zhang,andT.-S.Chua.
+Unifyingvirtualandphysicalworlds: Learningtowards
+localandglobalconsistency.ACM Transactions on
+Information Systems,2017.
+[43] X.WangandY.Wang.Improvingcontent-basedand
+hybridmusicrecommendationusingdeeplearning.InMM,
+pages627–636,2014.
+[44] Y.Wu,C.DuBois,A.X.Zheng,andM.Ester.
+Collaborativedenoisingauto-encodersfortop-n
+recommendersystems.InWSDM,pages153–162,2016.
+[45] F.Zhang,N.J.Yuan,D.Lian,X.Xie,andW.-Y.Ma.
+Collaborativeknowledgebaseembeddingforrecommender
+systems.InKDD,pages353–362,2016.
+[46] H.Zhang,F.Shen,W.Liu,X.He,H.Luan,andT.-S.
+Chua.Discretecollaborativefiltering.InSIGIR,pages
+325–334,2016.
+[47] H.Zhang,Y.Yang,H.Luan,S.Yang,andT.-S.Chua.
+Startfromscratch: Towardsautomaticallyidentifying,
+modeling,andnamingvisualattributes.InMM,pages
+187–196,2014.
+[48] Y.Zheng,B.Tang,W.Ding,andH.Zhou.Aneural
+autoregressiveapproachtocollaborativefiltering.InICML,
+pages764–773,2016.
