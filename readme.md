@@ -18,6 +18,8 @@
 
 - 찾아보니, pdfplumber를 사용하지 않고 VILA라는 이미지 모델로 논문을 section별로 추출한 깃허브 레포 발견. -> 적용해보니 잘됨.
 
+- VILA로 추출한 section별 내용을 병렬로 Llama3.1에 질문할 예정이었으나, VILA에서 제공하는 라이브러리가 FastAPI의 asyncio와 fork 버전이 달라? (정확히는 어떤 에러인지 모르겠음) 병렬처리가 안되어 section별 순차적으로 요약 진행함.
+
 - summary는 일관성을 위해 markdown으로 요약했고, section 별 중요한 부분은 빨간색으로 강조하도록 프롬프팅 진행.
 
 - Naive Test 결과를 바탕으로 FastAPI 서버 구성하고, NextJS로 간단히 pdf업로드 하는 페이지와, pdf 원본 & 요약한 글을 보여주는 페이지 2개 제작.
