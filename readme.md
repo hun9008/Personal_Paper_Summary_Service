@@ -6,7 +6,7 @@
 | --- | --- |
 | FrontEnd | NextJS |
 | BackEnd | FastAPI |
-| Model | Llama3.1 VILA |
+| Model | Llama3.1 VILA ElasticSearch |
 
 기존에 논문 summary 서비스들이 기능이 마음에 안들고 유료라 개인 사용을 위해 만들어 봄. Llama의 경우 로컬에서도 사용할 수 있어, 쓸만하지 않을까 하는 생각에 시작. 
 
@@ -34,3 +34,8 @@
 >
 > 현재는 이전 요약 기록을 로컬에 저장하고 로컬에 상태를 확인해 캐시된 요약을 가져오지만, DB로 Migration 할 예정.
 
+## 2024-09-16
+
+Elastic Search 구축 및 section별 저장.
+
+But GPT o1 등장으로 일단 keep하기로 함. 

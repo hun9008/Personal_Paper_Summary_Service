@@ -1,9 +1,9 @@
-from fastapi import FastAPI, UploadFile, File, Query
+from fastapi import FastAPI, UploadFile, File, Query, Request
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 import os
 import shutil
 import asyncio
-from vila_run import predict, construct_token_groups, construct_section_groups, summarize_section, summarize_overall, save_to_md
+from vila_run import predict, construct_token_groups, construct_section_groups, summarize_section, summarize_overall, save_to_md, save_to_txt, fetch_ans_llama31
 from vila.pdftools.pdf_extractor import PDFExtractor
 from vila.predictors import HierarchicalPDFPredictor
 import layoutparser as lp
@@ -63,6 +63,7 @@ async def upload_pdf(file: UploadFile = File(...)):
         file_base_name = os.path.splitext(file.filename)[0]  # 확장자 제외 파일 이름
         folder_path = os.path.join("./uploads", file_base_name)  # uploads/파일이름 폴더
         summary_filepath = os.path.join(folder_path, "summary.md")  # 요약 결과 파일 경로
+        all_text_filepath = os.path.join(folder_path, "all_text.txt")  # 전체 텍스트 파일 경로  
 
         # 만약 summary.md 파일이 이미 존재하면, 바로 반환
         if os.path.exists(summary_filepath):
@@ -88,15 +89,15 @@ async def upload_pdf(file: UploadFile = File(...)):
         progress_status["progress"] = 50  # 섹션 그룹화 완료, 진행률 50%
 
         # 섹션 요약
-        section_summaries = await summarize_section(section_groups, update_progress)  # 진행 상태 콜백 함수 전달
+        section_summaries = await summarize_section(section_groups, update_progress, file_base_name)  # 진행 상태 콜백 함수 전달
         progress_status["progress"] = 90  # 섹션 요약 완료, 진행률 90%
 
         # 전체 요약 생성
-        overall_summary = await summarize_overall(section_groups)
+        overall_summary = await summarize_overall(section_groups, all_text_filepath)
         progress_status["progress"] = 95  # 전체 요약 완료, 진행률 95%
 
         # 마크다운 파일로 저장
-        save_to_md(overall_summary, section_summaries, filename=summary_filepath)
+        save_to_md(overall_summary, "", filename=summary_filepath)
 
         # summary.md 파일의 모든 내용을 읽어서 반환
         summary_content = read_summary_file(summary_filepath)
@@ -216,3 +217,18 @@ async def generate_progress() -> AsyncGenerator[str, None]:
 @app.get("/progress")
 async def progress():
     return StreamingResponse(generate_progress(), media_type="text/event-stream")
+
+@app.post("/chat")
+async def chat(request: Request):
+    try:
+        data = await request.json()  # 요청 본문에서 JSON 데이터를 추출
+        prompt = data.get("prompt")  # 'prompt' 키로부터 값을 가져옴
+
+        if not prompt:
+            return JSONResponse(content={"error": "No prompt provided"}, status_code=400)
+
+        response = await fetch_ans_llama31(prompt)
+        return JSONResponse(content={"response": response})
+
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)

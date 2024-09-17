@@ -95,16 +95,35 @@
 
 .markdown-body p {
   margin-bottom: 1em;
+  overflow:visible;
 }
 
 .markdown-body pre {
   background-color: #f4f4f4;
   padding: 1em;
   border-radius: 5px;
-  overflow-x: auto;
+  overflow: visible;
   margin-bottom: 1em;
+  white-space: pre-wrap;    /* 코드 블록에서 줄바꿈 처리 */
+  word-break: break-word;
+}
+
+.markdown-body {
+  word-break: break-word;   /* 긴 단어를 강제로 줄바꿈 */
+  white-space: normal;      /* 자동 줄바꿈을 적용하여 텍스트가 한 줄로 넘치지 않게 */
+  overflow-wrap: break-word; /* 영역을 벗어나는 단어 줄바꿈 */
+  max-width: 100%;          /* 컨테이너 너비를 넘지 않도록 */
+}
+
+.markdown-body table {
+  width: 100%;
+  table-layout: fixed;
 }
 
 .katex {
   color: inherit !important;  /* Katex 수식 부분은 기존 텍스트 색상을 따름 */
 }
+/* 
+.break-words {
+  width: 80%
+} */

@@ -14,6 +14,10 @@ from progress_tracker import progress_status
 
 import re
 
+from elasticsearch import Elasticsearch
+
+es = Elasticsearch("http://elastic.hunian.site:80")
+
 def predict(pdf_path, pdf_extractor, vision_model, layout_model):
     page_tokens, page_images = pdf_extractor.load_tokens_and_image(pdf_path)
 
@@ -94,21 +98,6 @@ def construct_section_groups(token_groups):
     section_groups = {k: ' '.join(v) for k,v in section_groups.items()}
     return section_groups
 
-pdf_extractor = PDFExtractor("pdfplumber")
-page_tokens, page_images = pdf_extractor.load_tokens_and_image("./Neural Collaborative Filtering.pdf")
-
-vision_model = lp.EfficientDetLayoutModel("lp://PubLayNet")  
-pdf_predictor = HierarchicalPDFPredictor.from_pretrained("allenai/hvila-block-layoutlm-finetuned-docbank")
-
-pred_tokens = predict("./Neural Collaborative Filtering.pdf", pdf_extractor, vision_model, pdf_predictor)
-token_groups = construct_token_groups(pred_tokens)
-section_groups = construct_section_groups(token_groups)
-
-sections = list(section_groups.keys())
-# print(sections)
-
-# print(section_groups[sections[0]])
-
 async def fetch_ans_llama31(prompt_type: str):
     loop = asyncio.get_event_loop()
 
@@ -149,24 +138,54 @@ def ensure_closing_font_tag(text: str) -> str:
     return ' '.join(sentences)
 
 # 요약 섹션 처리 함수
-async def summarize_section(section_groups, update_progress_fn=None):
+async def summarize_section(section_groups, update_progress_fn=None, file_name=None):
     summarize_sections = {}
     total_sections = len(section_groups)
+    index_name = file_name if file_name else "default_index"
+    index_name = index_name.lower().replace(" ", "_").replace(".", "_")
     
     for idx, (section, text) in enumerate(tqdm_asyncio(section_groups.items(), desc="Summarizing sections")):
-        prompt = f"""Considering that this is a computer science paper, when using markdown, avoid using # and *, and summarize in paragraphs as much as possible. Then, apply LaTeX to the equations and write the most important words or sentences in the summarized part in red.
+        prompt = f"""Considering that this is a computer science paper, when using markdown, avoid using # and *, and summarize in paragraphs as much as possible. 
+Then, apply LaTeX to the equations and write the most important words or sentences in the summarized part in red.
 
 Restrictions:
 1. Sentences starting with <font color='red'> must end with </font>.
-2. Output only the summarized results without modifiers.
-3. Do not use ----, ====.
+2. Before any table (| --- | --- | structure), add an empty line.
+3. Output only the summarized results without modifiers.
+4. Do not use ----, ====.
+
+Format for each section:
+
+1. **Key Points**: Briefly highlight the most important points of this section.
+2. **Summary**: Provide a detailed summary of the content of this section.
+3. **Important Equations**: Display any key equations using LaTeX.
+
+$$
+\\text{{log loss}} = - \\sum_{{i=1}}^{{n}} y_i \\cdot \\log(p_i) + (1 - y_i) \\cdot \\log(1 - p_i)
+$$
+
+4. **Tables**: If there are tables, add a blank line before each table, and format the table in Markdown.
+
+| Example Header 1 | Example Header 2 |
+|------------------|------------------|
+| Example Data 1   | Example Data 2   |
+
 This is Content : \n\n{text}"""
         
-        translated_text = await fetch_ans_llama31(prompt)
+        document = {
+            "section": section,  # 섹션 이름
+            "text": text         # 섹션 내용
+        }
 
-        # ensure_closing_font_tag 함수로 수식 앞뒤 공백 처리 및 <font> 처리
-        translated_text = ensure_closing_font_tag(translated_text)
-        summarize_sections[section] = translated_text
+        # ElasticSearch에 데이터 인덱싱 (저장)
+        es.index(index=index_name, document=document)
+
+        # translated_text = await fetch_ans_llama31(prompt)
+
+        # # ensure_closing_font_tag 함수로 수식 앞뒤 공백 처리 및 <font> 처리
+        # translated_text = ensure_closing_font_tag(translated_text)
+        # summarize_sections[section] = translated_text
+        summarize_sections[section] = text
 
         # 진행 상태 업데이트 (50% ~ 90% 구간 차지)
         if update_progress_fn:
@@ -175,16 +194,37 @@ This is Content : \n\n{text}"""
     
     return summarize_sections
 
-
-async def summarize_overall(section_groups):
+async def summarize_overall(section_groups, all_file_path):
     
     combined_text = " ".join(section_groups.values())
     print("len : ", len(combined_text))
 
-    prompt = f"Summarize the entire contents of the paper Just print the contents. :\n\n{combined_text}"
+    save_to_txt(combined_text, section_groups, filename=all_file_path)
+
+    prompt = f"""
+    Summarize the entire contents of the paper with a clear and concise structure. Focus on providing an overview that allows readers to understand the main flow and contributions of the paper. Include the following elements:
+
+    1. **Purpose and Research Goals**: What is the main objective of the paper? Summarize the key research questions or problems the paper addresses.
+    2. **Background and Motivation**: Provide a brief context of the study. Why is this research important? What background knowledge is necessary to understand the paper's contribution?
+    3. **Methodology Overview**: Summarize the methods or approaches used in the paper. Describe any key techniques, models, or algorithms applied to solve the problem.
+    4. **Key Contributions and Results**: Highlight the most significant findings or outcomes of the research. Focus on how these results advance the field or provide solutions to the research questions.
+    5. **Technical Innovations**: Describe any novel techniques, formulas, or frameworks introduced in the paper. Provide examples of how these innovations are applied.
+    6. **Conclusions and Future Work**: Summarize the conclusion of the paper and any suggestions for future research or unresolved questions.
+
+    Provide this summary in a way that gives a complete understanding of the paper's flow and contributions, without diving too deeply into specific numerical details. Make sure the reader can grasp the overall importance and innovation presented in the paper. 
+
+    Here is the text of the paper:\n\n{combined_text}
+    """
+
     overall_summary = await fetch_ans_llama31(prompt)
 
-    prompt = f"This is a summary of a computer science paper. Please translate it into Korean. The terms used in the paper should be kept in English, and only the explanations should be translated into Korean. Chinese characters and Japanese should not be used. Please print only the content. : \n\n{overall_summary}"
+    # 번역 프롬프트 수정
+    prompt = f"""This is a summary of a computer science paper. 
+Translate the following summary into Korean while keeping all technical terms, algorithms, and key models in English. 
+The explanations can be translated into Korean, but do not use Chinese or Japanese characters.
+Please Just Translate Texts, Not Extra Explanation.
+
+Summary to translate:\n\n{overall_summary}"""
     overall_summary = await fetch_ans_llama31(prompt)
         
     return overall_summary
@@ -192,32 +232,20 @@ async def summarize_overall(section_groups):
 # 마크다운 파일로 저장
 def save_to_md(overall_summary, section_summaries, filename="summary.md"):
     md_content = f"# Document Summary\n\n**Overall Summary:**\n\n{overall_summary}\n\n"
-    for section, summary in section_summaries.items():
-        md_content += f"## {section}\n\n{summary}\n\n"
+
+    if section_summaries != "":
+        for section, summary in section_summaries.items():
+            md_content += f"## {section}\n\n{summary}\n\n"
 
     # 마크다운 파일로 저장
     with open(filename, "w", encoding="utf-8") as f:
         f.write(md_content)
 
-async def main():
-    # 예시로 섹션 그룹 가져오기
-    start_time = time.time()
+def save_to_txt(overall_text, section_texts, filename="all_raw_text.txt"):
+    txt_content = f"# Document Summary\n\n**Overall Summary:**\n\n{overall_text}\n\n"
+    for section, text in section_texts.items():
+        txt_content += f"## {section}\n\n{text}\n\n"
 
-    pred_tokens = predict("./Neural Collaborative Filtering.pdf", pdf_extractor, vision_model, pdf_predictor)
-    token_groups = construct_token_groups(pred_tokens)
-    section_groups = construct_section_groups(token_groups)
-
-    # 섹션 요약
-    # section_summaries = await translate_section(section_groups)
-    section_summaries = await summarize_section(section_groups)
-
-    # 전체 섹션 요약으로 최종 요약 생성
-    overall_summary = await summarize_overall(section_groups)
-
-    # 마크다운 파일로 저장
-    save_to_md(overall_summary, section_summaries)
-    end_time = time.time()
-    print(f"Processing time: {end_time - start_time:.2f} seconds")
-
-# 프로그램 실행
-# asyncio.run(main())
+    # 텍스트 파일로 저장
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(txt_content)
